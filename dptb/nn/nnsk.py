@@ -241,7 +241,9 @@ class NNSK(torch.nn.Module):
         if self.if_push:
             if abs(push.get("rs_thr")) >0:
                 if isinstance(self.hopping_options["rs"], dict):
-                    log.error(f"rs is a dict, so cannot be decayed. Please provide a float or int for rs.")
+                    # changelog: support the push of multiple rs
+                    # log.error(f"rs is a dict, so cannot be decayed. Please provide a float or int for rs.")
+                    pass
 
             if abs(push.get("rc_thr")) >0:
                 if isinstance(self.hopping_options["rc"], dict):
@@ -253,8 +255,12 @@ class NNSK(torch.nn.Module):
                     log.error(f"ovp_thr is positive, which means the ovp_factor will be increased. This is not allowed in the push mode.")
                     raise ValueError("ovp_thr is positive, which means the ovp_factor will be increased. This is not allowed in the push mode.")
 
-
-    def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., ovp_thr: float=0., period:int=100):
+    def push_decay(self, 
+                   rs_thr: float=0., 
+                   rc_thr: float=0., 
+                   w_thr: float=0., 
+                   ovp_thr: float=0., 
+                   period: int=100):
         """Push the soft cutoff function
 
         Parameters
@@ -266,20 +272,31 @@ class NNSK(torch.nn.Module):
         """
 
         self.count_push += 1
-        if self.count_push % period == 0:
-            if abs(rs_thr) > 0:
-                self.hopping_options["rs"] += rs_thr
-            if abs(w_thr) > 0:
-                self.hopping_options["w"] += w_thr
-            if abs(rc_thr) > 0:
-                self.hopping_options["rc"] += rc_thr
-            if abs(ovp_thr) > 0 :
-                if self.ovp_factor >= abs(ovp_thr):
-                    self.ovp_factor += ovp_thr
-                    log.info(f"ovp_factor is decreased to {self.ovp_factor}")
-                else:
-                    log.info(f"ovp_factor is already less than {abs(ovp_thr)}, so not decreased.")
+        push = self.count_push % period
 
+        # we do not consider the rs_thr as the dict case, that is, an asynic push
+        if push and abs(rs_thr) > 0:
+            # but we support the push of multiple bonds
+            if isinstance(self.hopping_options['rs'], (int, float)):
+                self.hopping_options['rs'] += rs_thr
+            if isinstance(self.hopping_options['rs'], dict):
+                for k in self.hopping_options['rs'].keys():
+                    self.hopping_options['rs'][k] += rs_thr
+        
+        if push and abs(w_thr) > 0:
+            self.hopping_options['w'] += w_thr
+
+        if push and abs(rc_thr) > 0:
+            self.hopping_options['rc'] += rc_thr
+
+        if push and abs(ovp_thr) > 0:
+            if self.ovp_factor >= abs(ovp_thr):
+                self.ovp_factor += ovp_thr
+                log.info(f"ovp_factor is decreased to {self.ovp_factor}")
+            else:
+                log.info(f"ovp_factor is already less than {abs(ovp_thr)}, so not decreased.")
+
+        if push:
             self.model_options["nnsk"]["hopping"] = self.hopping_options
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
