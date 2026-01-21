@@ -50,7 +50,12 @@ class Saver(Plugin):
         # suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.onsite_options["skfunction"]["sk_cutoff"]+"_w"+\
         #         "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
         if self.push == 'rs_w':
-            suffix = ".iter_rs" + "%.3f"%self.trainer.model.hopping_options["rs"]+"_w"+"%.3f"%self.trainer.model.hopping_options["w"]
+            # changelog: support the multiple rs push @kirk0830 at 20260121
+            rsinfo = self.trainer.model.hopping_options["rs"]
+            rsinfo = f'{rsinfo:.3f}' if not isinstance(rsinfo, dict) \
+                else ','.join([f'{r:.3f}' for r in rsinfo.values()])
+            winfo  = f'{self.trainer.model.hopping_options["w"]:.3f}'
+            suffix = f".iter_rs{rsinfo}_w{winfo}"
             # By default, the maximum number of saved checkpoints is 100 for pushing rs and w.
             max_ckpt = self.trainer.train_options["max_ckpt"]
         elif self.push == 'overlap':
